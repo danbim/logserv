@@ -1,79 +1,69 @@
 import path              from 'path';
+import timers            from 'timers';
 import express           from 'express';
+import Http              from 'http';
+import SocketIo          from 'socket.io';
 import config            from '../config/config.js';
 import routes            from '../common/routes.js';
-import bodyParser        from 'body-parser';
-import expressListRoutes from 'express-list-routes';
 
-var app  = express();
-var port = process.env.PORT || config.port;
-var dir  = path.dirname(process.mainModule.filename);
+var logFiles;
+if (!process.env.LOGSERV_FILES) {
+  logFiles = process.argv.slice(2);
+} else if (process.env.LOGSERV_FILES) {
+  logFiles = process.env.LOGSERV_FILES.split(' ');
+} else {
+  logFiles = config.logFiles;
+}
+logFiles = logFiles.map((f) => path.normalize(f));
+
+console.log('Starting logserv serving', logFiles);
+
+var app    = express();
+var server = Http.Server(app);
+var io     = SocketIo(server, { path : routes.route('socket.io') + '/' });
+var port   = process.env.PORT || config.port;
+var host   = config.host || 'localhost';
+var dir    = path.dirname(process.mainModule.filename);
+
+io.on('connection', (socket) => {
+  console.log('client connected');
+  var schedules = [];
+  logFiles.forEach((logFile) => {
+    schedules.push(timers.setInterval(() => {
+      var filename = path.basename(logFile);
+      var msg = {
+        filename : filename,
+        line : 'hello, ' + filename + ' ' + new Date().toISOString()
+      };
+      console.log('emitting to %s: %s', filename, JSON.stringify(msg));
+      io.to(filename).emit('log', msg);
+    }, 1000));
+  });
+  socket.on('join', (data) => {
+    console.log('client joined', data.filename);
+    socket.join(data.filename);
+  });
+  socket.on('leave', (data) => {
+    console.log('client leaving', data.filename);
+    socket.leave(data.filename);
+  });
+  socket.on('disconnect', (socket) => {
+    console.log('client disconnected');
+    schedules.forEach((s) => timers.clearInterval(s));
+  });
+});
 
 app.use(routes.asset('/static'), express.static(dir + '/../static/'));
 
-// set up our express application
-app.use(bodyParser.json()); // get information from html forms
-app.use(bodyParser.urlencoded({ extended: true }));
-
-
-// serve all (other) requests to single-page-app contained in index.html
 var index = require('./index.js');
-var contextPath = config.contextPath;
-contextPath = contextPath.substr(0, 1) === '/' ? contextPath : '/' + contextPath;
-contextPath = contextPath.substr(contextPath.length - 1) === '/' ? contextPath + '?' : contextPath + '/?';
-var catchAllRoute = contextPath + '*';
-app.get(catchAllRoute, function(req, res) {
+app.get(routes.asset('/'), (req, res) => {
   res.status(200).send(index);
 });
 
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  var err = new Error('Not Found');
-  err.status = 404;
-  next(err);
-  console.log('404 ', req.path);
+app.get(routes.route('filenames'), (req, res) => {
+  res.json(logFiles.map((f) => path.basename(f)));
 });
 
-// error handlers
-if (app.get('env') === 'development') {
+server.listen(port);
 
-  console.log('Starting server in development mode');
-
-  // development error handler
-  // will print stacktrace
-  app.use(function(err, req, res, next) {
-    if (!err.status || err.status === 500) {
-      console.log(err.stack);
-    }
-    res.status(err.status || 500);
-    res.format({
-      'application/json': function() {
-        res.json(err);
-      },
-      'default': function() {
-        res.status(406).send('Not Acceptable');
-      }
-    });
-  });
-
-} else {
-
-  // production error handler
-  // no stacktraces leaked to user
-  app.use(function(err, req, res, next) {
-    res.status(err.status || 500);
-    res.format({
-        'application/json': function() {
-          res.json({});
-        },
-        'default': function() {
-          res.send(406, 'Not Acceptable');
-        }
-      });
-  });
-}
-
-// launch =====================================================================
-app.listen(port);
-expressListRoutes({ prefix: '' }, 'Server REST API:', app);
 console.log('Server started on ' + config.host + ':' + port + config.contextPath);

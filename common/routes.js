@@ -2,7 +2,10 @@ import config   from '../config/config.js';
 import routster from 'routster';
 
 var routes = {
-  'ui_home' : '/?'
+  'socket.io' : '/socket.io',
+  'filenames' : '/files/?',
+  'ui_home'   : '/?',
+  'ui_file'   : '/files/:filename/?'
 };
 
 export default {
