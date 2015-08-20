@@ -3,6 +3,7 @@ import React           from 'react';
 import Router          from 'react-router';
 import { Nav, Navbar } from 'react-bootstrap';
 import { NavItemLink } from 'react-router-bootstrap';
+import urlencode       from 'urlencode';
 
 import routes          from '../../common/routes.js';
 
@@ -19,7 +20,7 @@ var Scaffold = React.createClass({
   },
   render : function() {
     var files = this.state.filenames.map((f) => {
-      return <NavItemLink key={f} to="ui_file" params={{filename : f}}>{f}</NavItemLink>
+      return <NavItemLink key={f} to="ui_file" params={{filename : urlencode(f)}}>{f}</NavItemLink>
     });
     return (
       <div className="container">

@@ -1,8 +1,9 @@
-import $      from 'jquery';
-import React  from 'react';
-import Router from 'react-router';
-import io     from 'socket.io-client';
-import routes from '../../common/routes.js';
+import $         from 'jquery';
+import React     from 'react';
+import Router    from 'react-router';
+import io        from 'socket.io-client';
+import routes    from '../../common/routes.js';
+import urldecode from 'urldecode';
 
 var socket;
 var HomeView = React.createClass({
@@ -25,7 +26,7 @@ var HomeView = React.createClass({
         if (this.isMounted()) {
           this.setState({ lines:[], connectionState : 'connected' });
         }
-        this.join(this.props.params.filename);
+        this.join(urldecode(this.props.params.filename));
       })
       .on('connect_error', console.log)
       .on('connect_timeout', console.log)
@@ -36,7 +37,7 @@ var HomeView = React.createClass({
       .on('reconnect_failed', console.log)
       .on('log', (data) => {
         if (this.isMounted()) {
-          if (data.filename == this.props.params.filename) {
+          if (data.filename == urldecode(this.props.params.filename)) {
             var lines = this.state.lines || [];
             lines.push(data.line);
             this.setState({lines : lines});
@@ -90,9 +91,9 @@ var HomeView = React.createClass({
     console.log('componentWillReceiveProps');
     this.connect();
     if (socket && socket.connected) {
-      this.leave(this.props.params.filename);
+      this.leave(urldecode(this.props.params.filename));
       this.setState({lines:[]});
-      this.join(nextProps.params.filename);
+      this.join(urldecode(nextProps.params.filename));
     }
   },
   shouldComponentUpdate : function() {

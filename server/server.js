@@ -1,21 +1,23 @@
-import path              from 'path';
-import timers            from 'timers';
-import express           from 'express';
-import Http              from 'http';
-import SocketIo          from 'socket.io';
-import config            from '../config/config.js';
-import routes            from '../common/routes.js';
-import Tail              from 'tail';
+import fs         from 'fs';
+import path       from 'path';
+import timers     from 'timers';
+import express    from 'express';
+import Http       from 'http';
+import SocketIo   from 'socket.io';
+import config     from '../config/config.js';
+import routes     from '../common/routes.js';
+import Tail       from 'tail';
+import LineByLine from 'line-by-line';
 
-var logFiles;
+var logFilesArg;
 if (!process.env.LOGSERV_FILES) {
-  logFiles = process.argv.slice(2);
+  logFilesArg = process.argv.slice(2);
 } else if (process.env.LOGSERV_FILES) {
-  logFiles = process.env.LOGSERV_FILES.split(' ');
+  logFilesArg = process.env.LOGSERV_FILES.split(' ');
 } else {
-  logFiles = config.logFiles;
+  logFilesArg = config.logFiles;
 }
-logFiles = logFiles.map((f) => path.normalize(f));
+var logFiles = logFilesArg.map((f) => path.resolve(process.cwd(), f));
 
 console.log('Starting logserv serving', logFiles);
 
@@ -26,33 +28,88 @@ var port   = process.env.PORT || config.port;
 var host   = config.host || 'localhost';
 var dir    = path.dirname(process.mainModule.filename);
 
+// map of map to hold tail instances for clients, maps socket ids -> file names -> tail instances
 var tails  = {};
-logFiles.forEach((logFile) => {
-  tails[logFile] = new Tail.Tail(logFile);
-  tails[logFile].on('line', (line) => {
-    io.to(logFile).emit('log', {
-      filename : logFile,
-      line : line
+
+var stopWatch = function(socketId, filename) {
+  if (tails[socketId] !== undefined && tails[socketId] != null &&
+      tails[socketId][filename] !== undefined && tails[socketId][filename] != null) {
+    console.log(`stopping watch for socket id ${socketId} on ${filename}`);
+    tails[socketId][filename].unwatch();
+    tails[socketId][filename] = null;
+  }
+};
+
+var stopAllWatches = function(socketId) {
+  if (tails[socketId]) {
+    Object.getOwnPropertyNames(tails[socketId]).forEach((filename) => {
+      stopWatch(socketId, filename);
     });
-  });
-  tails[logFile].on('error', (error) => {
-    io.to(logFile).emit('error', error);
-  });
-});
+    tails[socketId] = undefined;
+  }
+};
 
 io.on('connection', (socket) => {
   console.log('client connected');
+
   socket.on('join', (data) => {
-    console.log('client joined', data.filename);
-    socket.join(data.filename);
+
+    console.log('client trying to join', data.filename);
+
+    var logFile = data.filename;
+    // return error if file is not in the list of served files
+    if (logFiles.indexOf(logFile) == -1) {
+      console.log(`the requested filename "${logFile}" is not served`);
+      return;
+    }
+
+    console.log('client joined', logFile);
+    socket.join(logFile);
+
+    if (!fs.existsSync(logFile)) {
+
+      var msg = `log file "${logFile}" does not exist. ignoring for now...`;
+      console.log(msg);
+      socket.to(logFile).emit('error', msg);
+
+    } else {
+
+      if (tails[socket.id] === undefined) {
+        tails[socket.id] = {};
+      }
+      tails[socket.id][logFile] = new Tail.Tail(logFile, '\n', {}, true);
+      tails[socket.id][logFile].watch();
+      tails[socket.id][logFile].on('error', (error) => {
+        io.to(logFile).emit('error', error);
+      });
+
+      var lr = new LineByLine(logFile);
+      lr.on('error', () => console.log('error reading', logFile, error));
+      lr.on('end', () => {
+        console.log('ended reading', logFile)
+        tails[socket.id][logFile].on('line', (line) => {
+          io.to(logFile).emit('log', {
+            filename : logFile,
+            line : line
+          });
+        });
+      });
+      lr.on('line', (line) => io.to(logFile).emit('log', {
+        filename : logFile,
+        line : line
+      }));
+    }
   });
+
   socket.on('leave', (data) => {
     console.log('client leaving', data.filename);
     socket.leave(data.filename);
+    stopWatch(socket.id, data.filename);
   });
-  socket.on('disconnect', (socket) => {
+
+  socket.on('disconnect', () => {
     console.log('client disconnected');
-    schedules.forEach((s) => timers.clearInterval(s));
+    stopAllWatches(socket.id);
   });
 });
 
@@ -64,7 +121,7 @@ app.get(routes.asset('/'), (req, res) => {
 });
 
 app.get(routes.route('filenames'), (req, res) => {
-  res.json(logFiles.map((f) => path.basename(f)));
+  res.json(logFiles);
 });
 
 server.listen(port);
