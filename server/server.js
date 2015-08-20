@@ -5,6 +5,7 @@ import Http              from 'http';
 import SocketIo          from 'socket.io';
 import config            from '../config/config.js';
 import routes            from '../common/routes.js';
+import Tail              from 'tail';
 
 var logFiles;
 if (!process.env.LOGSERV_FILES) {
@@ -25,20 +26,22 @@ var port   = process.env.PORT || config.port;
 var host   = config.host || 'localhost';
 var dir    = path.dirname(process.mainModule.filename);
 
+var tails  = {};
+logFiles.forEach((logFile) => {
+  tails[logFile] = new Tail.Tail(logFile);
+  tails[logFile].on('line', (line) => {
+    io.to(logFile).emit('log', {
+      filename : logFile,
+      line : line
+    });
+  });
+  tails[logFile].on('error', (error) => {
+    io.to(logFile).emit('error', error);
+  });
+});
+
 io.on('connection', (socket) => {
   console.log('client connected');
-  var schedules = [];
-  logFiles.forEach((logFile) => {
-    schedules.push(timers.setInterval(() => {
-      var filename = path.basename(logFile);
-      var msg = {
-        filename : filename,
-        line : 'hello, ' + filename + ' ' + new Date().toISOString()
-      };
-      console.log('emitting to %s: %s', filename, JSON.stringify(msg));
-      io.to(filename).emit('log', msg);
-    }, 1000));
-  });
   socket.on('join', (data) => {
     console.log('client joined', data.filename);
     socket.join(data.filename);
