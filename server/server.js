@@ -77,7 +77,7 @@ io.on('connection', (socket) => {
       if (tails[socket.id] === undefined) {
         tails[socket.id] = {};
       }
-      tails[socket.id][logFile] = new Tail.Tail(logFile, '\n', {}, true);
+      tails[socket.id][logFile] = new Tail.Tail(logFile, '\n', {}, false);
       tails[socket.id][logFile].watch();
       tails[socket.id][logFile].on('error', (error) => {
         io.to(logFile).emit('error', error);
