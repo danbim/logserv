@@ -24,12 +24,16 @@ var Scaffold = React.createClass({
     });
     return (
       <div className="container">
-        <Navbar brand={<Router.Link to="ui_home">logserv</Router.Link>}>
-          <Nav navbar>
-            {files}
-          </Nav>
-        </Navbar>
-        <Router.RouteHandler />
+        <div className="logserv-nav">
+          <Navbar brand={<Router.Link to="ui_home">logserv</Router.Link>}>
+            <Nav navbar>
+              {files}
+            </Nav>
+          </Navbar>
+        </div>
+        <div className="logserv-content">
+          <Router.RouteHandler />
+        </div>
       </div>
     );
   }

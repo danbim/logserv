@@ -1,6 +1,24 @@
 @import "../../../node_modules/bootstrap/less/bootstrap.less";
 
-input[type="submit"] {
-  .btn;
-  .btn-primary;
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.logserv-wrapper {
+  display: flex;
+  min-height: 100%;
+  flex-direction: row;
+}
+
+.logserv-nav {
+}
+
+.logserv-content {
+  flex: 1;
+}
+
+.logserv-log {
+  overflow: auto;
 }
