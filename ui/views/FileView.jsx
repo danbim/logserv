@@ -167,8 +167,11 @@ var HomeView = React.createClass({
       <div>
         <div className="row">
           <div className="col-md-12 pull-right">
+            Display last
             <input type="text" value={this.state.maxLinesInput} onChange={this.onChangedMaxLinesInput}></input>
+            lines
             <button type="button" onClick={this.onChangedMaxLines}>Update</button>
+            |
             <button type="button" className={this.state.scrollToBottom ? "btn btn-default" : "active btn btn-default"} aria-label="Left Align">
               <span className="glyphicon glyphicon-pause" aria-hidden="true" onClick={this.togglePause}></span>
             </button>
