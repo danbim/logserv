@@ -29,18 +29,18 @@ var dirs = {
   src : {
     'less'   : ['./ui/assets/less/**/*.less'],
     'static' : ['./ui/static/**'],
-    'config' : ['./config/**/*.js'],
+    'config' : ['./config/**'],
     'common' : ['./common/**/*.js'],
-    'server' : ['./server/**/*.js'],
+    'server' : ['./server.js', './index.js'],
     'view'   : './ui/views/App.jsx',
-    'test'   : ['test/**/*.spec.js']
+    'test'   : ['./test/**/*.spec.js']
   },
   build : {
     'less'   : './dist/static/css/',
     'static' : './dist/static/',
     'config' : './dist/config/',
     'common' : './dist/common/',
-    'server' : './dist/server/',
+    'server' : './dist/',
     'view'   : './dist/static/js/'
   }
 };
@@ -82,7 +82,7 @@ var browserifyTask = function() {
   return rebundle();
 };
 
-var serverExecutable = 'dist/server/server.js';
+var serverExecutable = 'dist/server.js';
 var server = {
   instance : null,
   start : function(callback) {
@@ -120,7 +120,6 @@ gulp.task('set-env-prod', function() {
 
 gulp.task('config', function () {
     return gulp.src(dirs.src.config)
-        .pipe(babel())
         .pipe(gulp.dest(dirs.build.config));
 });
 
@@ -198,8 +197,21 @@ gulp.task('default', function(callback) {
   });
 });
 
+gulp.task('bin', function(callback) {
+  gulp.src('./bin/**').pipe(gulp.dest('./dist/bin/'));
+});
+
+gulp.task('package', function(callback) {
+  gulp.src('./package.json').pipe(gulp.dest('./dist/'));
+});
+
 gulp.task('build', function(callback) {
-  return sequence(['clean', 'set-env-prod'], ['test'], ['less', 'browserify', 'static', 'server'], callback);
+  return sequence(
+    ['clean', 'set-env-prod'],
+    ['test'],
+    ['less', 'browserify', 'static', 'package', 'bin', 'server'],
+    callback
+  );
 });
 
 gulp.task('clean', function(callback) {

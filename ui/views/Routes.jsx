@@ -1,6 +1,6 @@
 import React    from 'react';
 import Router   from 'react-router';
-import routes   from '../../common/routes.js';
+import routes   from '../../common/ui_routes.js';
 import Scaffold from './Scaffold.jsx';
 import HomeView from './HomeView.jsx';
 import FileView from './FileView.jsx';

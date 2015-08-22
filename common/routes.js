@@ -1,4 +1,4 @@
-import config   from '../config/config.js';
+import config   from 'config';
 import routster from 'routster';
 
 var routes = {
@@ -9,7 +9,7 @@ var routes = {
 };
 
 export default {
-  route   : routster.route(config.contextPath, routes, { relative : false }),
-  reverse : routster.reverse(config.contextPath, routes, { relative : false }),
-  asset   : routster.asset(config.contextPath, { relative : false })
+  route   : routster.route(config.get('contextPath'), routes, { relative : false }),
+  reverse : routster.reverse(config.get('contextPath'), routes, { relative : false }),
+  asset   : routster.asset(config.get('contextPath'), { relative : false })
 };

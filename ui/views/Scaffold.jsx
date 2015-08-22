@@ -5,7 +5,7 @@ import { Nav, Navbar } from 'react-bootstrap';
 import { NavItemLink } from 'react-router-bootstrap';
 import urlencode       from 'urlencode';
 
-import routes          from '../../common/routes.js';
+import routes          from '../../common/ui_routes.js';
 
 var Scaffold = React.createClass({
   getInitialState : function() {

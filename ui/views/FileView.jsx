@@ -2,7 +2,7 @@ import $         from 'jquery';
 import React     from 'react';
 import Router    from 'react-router';
 import io        from 'socket.io-client';
-import routes    from '../../common/routes.js';
+import routes    from '../../common/ui_routes.js';
 import urldecode from 'urldecode';
 
 var socket;

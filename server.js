@@ -4,10 +4,12 @@ import timers     from 'timers';
 import express    from 'express';
 import Http       from 'http';
 import SocketIo   from 'socket.io';
-import config     from '../config/config.js';
-import routes     from '../common/routes.js';
+import config     from 'config';
 import Tail       from 'tail';
 import LineByLine from 'line-by-line';
+import morgan     from 'morgan';
+
+import routes     from './common/routes.js';
 
 var logFilesArg;
 if (!process.env.LOGSERV_FILES) {
@@ -15,7 +17,7 @@ if (!process.env.LOGSERV_FILES) {
 } else if (process.env.LOGSERV_FILES) {
   logFilesArg = process.env.LOGSERV_FILES.split(' ');
 } else {
-  logFilesArg = config.logFiles;
+  logFilesArg = config.get('logFiles');
 }
 var logFiles = logFilesArg.map((f) => path.resolve(process.cwd(), f));
 
@@ -24,9 +26,10 @@ console.log('Starting logserv serving', logFiles);
 var app    = express();
 var server = Http.Server(app);
 var io     = SocketIo(server, { path : routes.route('socket.io') + '/' });
-var port   = process.env.PORT || config.port;
-var host   = config.host || 'localhost';
-var dir    = path.dirname(process.mainModule.filename);
+var port   = process.env.PORT || config.get('port');
+var host   = config.get('host') || 'localhost';
+
+app.use(morgan('combined'));
 
 // map of map to hold tail instances for clients, maps socket ids -> file names -> tail instances
 var tails  = {};
@@ -113,7 +116,7 @@ io.on('connection', (socket) => {
   });
 });
 
-app.use(routes.asset('/static'), express.static(dir + '/../static/'));
+app.use(routes.asset('/static'), express.static(__dirname + '/static/'));
 
 var index = require('./index.js');
 app.get(routes.asset('/'), (req, res) => {
@@ -126,4 +129,4 @@ app.get(routes.route('filenames'), (req, res) => {
 
 server.listen(port);
 
-console.log('Server started on ' + config.host + ':' + port + config.contextPath);
+console.log('Server started on ' + config.get('host') + ':' + port + config.get('contextPath'));
