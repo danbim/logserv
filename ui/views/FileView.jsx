@@ -7,23 +7,20 @@ import urldecode from 'urldecode';
 
 var socket;
 var HomeView = React.createClass({
-  lastRender : -1,
+  refreshInterval : null,
   connect : function() {
-    //console.log('connect', this.state);
     if (this.state.connectionState == 'connected' || this.state.connectionState == 'connecting') {
       return;
     }
     this.setState({ connectionState : 'connecting' });
     if (socket) {
       // connection had been established before, simply reconnect
-      console.log('reconnecting closed socket');
       socket.connect();
     } else {
       socket = io.connect(window.location.origin, { path : routes.reverse('socket.io') });
     }
     socket
       .on('connect', () => {
-        console.log('connected');
         if (this.isMounted()) {
           this.setState({ lines:[], connectionState : 'connected' });
         }
@@ -61,32 +58,25 @@ var HomeView = React.createClass({
     if (this.state.connectionState != 'connected') {
       throw 'Trying to join a room while disconnected';
     }
-    //console.log('joining', filename);
     socket.emit('join', {filename:filename});
   },
   leave : function(filename) {
     if (this.state.connectionState != 'connected') {
       throw 'Trying to leave a room while disconnected';
     }
-    //console.log('leaving', filename);
     socket.emit('leave', {filename:filename});
   },
-  getDefaultProps : function() {
-    //console.log('getDefaultProps', this.props, this.state);
-  },
   getInitialState : function() {
-    //console.log('getInitialState', this.props, this.state);
     return {
       lines : [],
       incoming : [],
       connectionState : 'disconnected',
       scrollToBottom : true,
-      maxLines : 50,
-      maxLinesInput : 50
+      maxLines : localStorage.getItem('maxLines') || 50,
+      maxLinesInput : localStorage.getItem('maxLines') || 50,
+      maxLinesInputValid : true,
+      maxLinesSaved : true
     };
-  },
-  componentWillMount : function() {
-    //console.log('componentWillMount', this.props, this.state);
   },
   componentDidUpdate : function() {
     if (this.state.scrollToBottom) {
@@ -94,7 +84,6 @@ var HomeView = React.createClass({
     }
   },
   componentWillReceiveProps : function(nextProps) {
-    //console.log('componentWillReceiveProps');
     this.connect();
     if (socket && socket.connected) {
       this.leave(urldecode(this.props.params.filename));
@@ -102,14 +91,11 @@ var HomeView = React.createClass({
       this.join(urldecode(nextProps.params.filename));
     }
   },
-  refreshInterval : null,
   onRefreshTimeout : function() {
 
     if (this.state.incoming.length == 0) {
       return;
     }
-
-    console.log('onRefreshTimeout');
 
     var lines    = this.state.lines;
     var maxLines = this.state.maxLines;
@@ -126,7 +112,6 @@ var HomeView = React.createClass({
     this.setState({lines : lines, incoming : []});
   },
   componentDidMount : function() {
-    //console.log('componentDidMount', this.props, this.state);
     this.connect();
     $(window).resize(function() {
         $('.logserv-log').height($(window).height() - $('.logserv-nav').height() - $('.logserv-log').offset().top);
@@ -135,44 +120,61 @@ var HomeView = React.createClass({
     this.refreshInterval = window.setInterval(this.onRefreshTimeout, 100);
   },
   componentWillUnmount : function() {
-    //console.log('componentWillUnmount');
     this.disconnect();
     if (this.refreshInterval) {
-      window.clearInterval(refreshInterval);
+      window.clearInterval(this.refreshInterval);
     }
   },
   togglePause : function() {
-    //console.log('togglePause', this.state.scrollToBottom);
+    var newState = !this.state.scrollToBottom;
+    console.log(newState, this.state.scrollToBottom);
     this.setState({ scrollToBottom : !this.state.scrollToBottom });
   },
-  onChangedMaxLinesInput : function(evt) {
-    this.setState({ maxLinesInput : evt.target.value });
-  },
-  onChangedMaxLines : function(evt) {
-    var maxLines = parseInt(this.state.maxLinesInput);
-    if (maxLines != 'NaN') {
-      while(this.state.lines.length > maxLines) {
-        this.state.lines.shift();
-      }
-      this.setState({ lines: this.state.lines, maxLines : maxLines });
+  onKeyDownMaxLinesInput : function(evt) {
+    if (evt.key === 'Enter') {
+      this.onChangedMaxLines();
     }
   },
+  onChangedMaxLinesInput : function(evt) {
+    var valid = !isNaN(parseInt(evt.target.value));
+    this.setState({ maxLinesInput : evt.target.value, maxLinesInputValid : valid, maxLinesSaved : false });
+  },
+  onChangedMaxLines : function() {
+    if (!this.state.maxLinesInputValid) {
+      return;
+    }
+    var maxLines = parseInt(this.state.maxLinesInput);
+    while(this.state.lines.length > this.state.maxLines) {
+      this.state.lines.shift();
+    }
+    localStorage.setItem('maxLines', maxLines);
+    this.setState({ lines: this.state.lines, maxLines : maxLines, maxLinesSaved : true });
+  },
   render : function() {
-    this.lastRender = new Date().getTime();
-    //console.log('render', this.props, this.state);
     var lines = this.state.lines == null ? 'Loading...' : this.state.lines.map((l) =>{
       return l + '\n';
     });
     return (
       <div>
         <div className="row">
-          <div className="col-md-12 pull-right">
-            Display last
-            <input type="text" value={this.state.maxLinesInput} onChange={this.onChangedMaxLinesInput}></input>
-            lines
-            <button type="button" onClick={this.onChangedMaxLines}>Update</button>
-            |
-            <button type="button" className={this.state.scrollToBottom ? "btn btn-default" : "active btn btn-default"} aria-label="Left Align">
+          <div className="col-md-6 form-group">
+            <div className={this.state.maxLinesSaved ? 'form-group' : this.state.maxLinesInputValid ? 'form-group has-success' : 'form-group has-error'}>
+                <label className="control-label" htmlFor="maxLinesInput">Display&nbsp;</label>
+                <input type="text"
+                  id="maxLinesInput"
+                  classNames="form-control"
+                  value={this.state.maxLinesInput}
+                  onChange={this.onChangedMaxLinesInput}
+                  onKeyDown={this.onKeyDownMaxLinesInput}></input>
+                <label className="control-label" htmlFor="maxLinesInput">&nbsp;lines&nbsp;</label>
+                <input type="submit" onClick={this.onChangedMaxLines}/>
+            </div>
+          </div>
+          <div className="col-md-6 form-group">
+            <button type="button"
+              id="buttonScrollToBottom"
+              className={this.state.scrollToBottom ? "btn btn-default pull-right" : "active btn btn-default pull-right"}
+              aria-label="Left Align">
               <span className="glyphicon glyphicon-pause" aria-hidden="true" onClick={this.togglePause}></span>
             </button>
           </div>
